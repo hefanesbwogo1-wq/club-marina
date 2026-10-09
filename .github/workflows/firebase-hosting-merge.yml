@@ -28,5 +28,5 @@ jobs:
         with:
           args: deploy --only hosting --project club-marina-mis
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CLUB_MARINA_MIS }}
+          GCP_SA_KEY: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CLUB_MARINA_MIS }}
           PROJECT_ID: club-marina-mis

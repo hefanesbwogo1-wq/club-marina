@@ -1,0 +1,37 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    
+    function isAdmin() {
+      return signedIn() && request.auth.token.email in [
+        'admin@clubmarina.co.ke'
+      ];
+    }
+
+    // Explicit staff rules - this was missing and caused your bug
+    match /staff/{docId} { allow read, write: if signedIn(); }
+    match /users/{userId} { allow read: if signedIn(); allow write: if signedIn(); }
+    match /appUsers/{userId} { allow read: if signedIn(); allow write: if signedIn(); }
+    match /tables/{docId} { allow read, write: if signedIn(); }
+    match /products/{docId} { allow read, write: if signedIn(); }
+    match /sales/{docId} { allow read, write: if signedIn(); }
+    match /auditLogs/{docId} { allow read, write: if signedIn(); }
+    match /liveActivity/{docId} { allow read, write: if signedIn(); }
+    match /voidRequests/{docId} { allow read, write: if signedIn(); }
+    match /categories/{docId} { allow read, write: if signedIn(); }
+    match /expenses/{docId} { allow read, write: if signedIn(); }
+    match /purchases/{docId} { allow read, write: if signedIn(); }
+    match /suppliers/{docId} { allow read, write: if signedIn(); }
+    match /cashShifts/{docId} { allow read, write: if signedIn(); }
+    match /cash_shifts/{docId} { allow read, write: if signedIn(); }
+    match /bookings/{docId} { allow read, write: if signedIn(); }
+    match /orders/{docId} { allow read, write: if signedIn(); }
+    match /stockCounts/{docId} { allow read, write: if signedIn(); }
+    match /settings/{docId} { allow read: if signedIn(); allow write: if isAdmin(); }
+    
+    // Keep catch-all
+    match /{document=**} { allow read, write: if signedIn(); }
+  }
+}

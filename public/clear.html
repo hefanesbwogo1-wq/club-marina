@@ -1,0 +1,5 @@
+<script>
+navigator.serviceWorker.getRegistrations().then(r=>r.forEach(x=>x.unregister()));
+localStorage.clear(); sessionStorage.clear();
+alert('cleared'); location.href='/login?v=999';
+</script>

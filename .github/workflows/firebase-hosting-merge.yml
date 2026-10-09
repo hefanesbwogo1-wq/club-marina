@@ -26,3 +26,5 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CLUB_MARINA_MIS }}
           channelId: live
           projectId: club-marina-mis
+        env:
+          FIREBASE_CLI_EXPERIMENTS: webframeworks

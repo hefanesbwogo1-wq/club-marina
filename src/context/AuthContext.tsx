@@ -1,6 +1,14 @@
+
 'use client';
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, signOut, User } from 'firebase/auth';
+
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  type ReactNode,
+} from 'react';
+import { onAuthStateChanged, signOut, type User } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
@@ -12,9 +20,23 @@ type AppUser = {
   name?: string;
 };
 
-type Ctx = { user: User | null; appUser: AppUser | null; profile: AppUser | null; loading: boolean; logout: () => Promise<void>; };
+type AuthContextValue = {
+  user: User | null;
+  appUser: AppUser | null;
+  profile: AppUser | null;
+  loading: boolean;
+  logout: () => Promise<void>;
+};
 
-const AuthContext = createContext<Ctx>({ user: null, appUser: null, profile: null, loading: true, logout: async () => {} });
+const AuthContext = createContext<AuthContextValue>({
+  user: null,
+  appUser: null,
+  profile: null,
+  loading: true,
+  logout: async () => {},
+});
+
+const PROFILE_COLLECTIONS = ['users', 'staff', 'appUsers', 'staffs'];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -22,66 +44,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (fbUser) => {
-      if (!fbUser) {
-        setUser(null);
-        setAppUser(null);
-        setLoading(false);
+    let active = true;
+
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      setLoading(true);
+      setUser(firebaseUser);
+      setAppUser(null);
+
+      if (!firebaseUser) {
+        if (active) setLoading(false);
         return;
       }
-      setUser(fbUser);
-      
-      // TRY 3 collections to find real role - NO guessing from email
-      let foundRole = '';
-      let foundName = '';
-      let foundBranch = '';
-      
-      const collectionsToTry = ['users', 'staff', 'staffs'];
-      
-      for (const col of collectionsToTry) {
-        try {
-          const snap = await getDoc(doc(db, col, fbUser.uid));
-          if (snap.exists()) {
-            const d: any = snap.data();
-            foundRole = String(d.role || d.Role || '').toLowerCase();
-            foundName = d.name || d.Name || d.displayName || '';
-            foundBranch = d.branchId || d.BranchId || d.branch || '';
-            if (foundRole) break;
+
+      try {
+        let profile: AppUser | null = null;
+
+        for (const collectionName of PROFILE_COLLECTIONS) {
+          try {
+            const snapshot = await getDoc(
+              doc(db, collectionName, firebaseUser.uid)
+            );
+
+            if (!snapshot.exists()) continue;
+
+            const data = snapshot.data();
+            const role = String(data.role || data.Role || '')
+              .trim()
+              .toLowerCase();
+
+            if (!role) continue;
+            if (data.active === false) continue;
+
+            profile = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              role,
+              branchId: String(
+                data.branchId || data.BranchId || data.branch || ''
+              ),
+              name: String(data.name || data.Name || data.displayName || ''),
+            };
+
+            break;
+          } catch (error) {
+            // Continue checking the legacy profile collections.
+            console.error(
+              `Unable to read profile from ${collectionName}:`,
+              error
+            );
           }
-        } catch {}
+        }
+
+        if (active) {
+          // No profile means no application role. Never guess admin.
+          setAppUser(profile);
+        }
+      } catch (error) {
+        console.error('Unable to load the signed-in user profile:', error);
+
+        if (active) {
+          setAppUser(null);
+        }
+      } finally {
+        if (active) setLoading(false);
       }
-
-      // If not found by UID, try by email in users
-      if (!foundRole) {
-        try {
-          // this is slow but fallback - check if you have email doc
-          console.log('No role found for uid, using fallback admin. Please set role in users/', fbUser.uid);
-        } catch {}
-      }
-
-      const finalRole = foundRole || 'waiter'; // default to waiter, not admin
-
-      setAppUser({
-        uid: fbUser.uid,
-        email: fbUser.email || '',
-        role: finalRole,
-        branchId: foundBranch,
-        name: foundName,
-      });
-      setLoading(false);
     });
 
-    return () => unsub();
+    return () => {
+      active = false;
+      unsubscribe();
+    };
   }, []);
 
   const logout = async () => {
     await signOut(auth);
-    localStorage.clear();
-    sessionStorage.clear();
     window.location.href = '/login';
   };
 
-  return <AuthContext.Provider value={{ user, appUser, profile: appUser, loading, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        appUser,
+        profile: appUser,
+        loading,
+        logout,
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export const useAuth = () => useContext(AuthContext);

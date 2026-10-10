@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState } from 'react';
 import { collection, getDocs, deleteDoc, doc, writeBatch } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -65,6 +65,7 @@ export default function CleanSystemPage(){
   };
 
   const handleClean = async () => {
+    return alert('Factory reset is temporarily disabled for safety. No data was changed.');
     if(confirmText!=='DELETE EVERYTHING'){
       return alert('Type DELETE EVERYTHING to confirm');
     }
@@ -80,7 +81,7 @@ export default function CleanSystemPage(){
         total+=c;
         setStatus(`Deleted ${c} from ${col} - Total: ${total}`);
       }
-      setStatus(`✅ DONE - Deleted ${total} documents. System is FRESH. Now recreate 12 tables and products.`);
+      setStatus(`âœ… DONE - Deleted ${total} documents. System is FRESH. Now recreate 12 tables and products.`);
       
       // Recreate 12 tables fresh
       setStatus('Recreating 12 tables fresh...');
@@ -95,7 +96,7 @@ export default function CleanSystemPage(){
           name:`TABLE ${i}`
         });
       }
-      setStatus(`✅ SYSTEM FRESH - 12 tables recreated - ${total} old records deleted - Ready for work at Chebunyo!`);
+      setStatus(`âœ… SYSTEM FRESH - 12 tables recreated - ${total} old records deleted - Ready for work at Chebunyo!`);
 
     }catch(e:any){
       setStatus('Error: '+e.message);
@@ -105,7 +106,7 @@ export default function CleanSystemPage(){
 
   return(
     <div style={{padding:20, maxWidth:600}}>
-      <h1 style={{fontWeight:900, fontSize:22, color:'#991b1b'}}>⚠️ FACTORY RESET - CLEAN SYSTEM</h1>
+      <h1 style={{fontWeight:900, fontSize:22, color:'#991b1b'}}>âš ï¸ FACTORY RESET - CLEAN SYSTEM</h1>
       <div style={{background:'#fef2f2', border:'2px solid #fecaca', padding:16, borderRadius:12, marginTop:16}}>
         <div style={{fontWeight:800, fontSize:13}}>This will DELETE:</div>
         <ul style={{fontSize:12, marginTop:8, lineHeight:1.6}}>
@@ -122,8 +123,8 @@ export default function CleanSystemPage(){
       <div style={{background:'white', borderRadius:12, padding:16, marginTop:16, border:'1px solid #e2e8f0'}}>
         <div style={{fontSize:12, fontWeight:700, marginBottom:8}}>Type <b style={{background:'#0f172a', color:'white', padding:'2px 6px', borderRadius:4}}>DELETE EVERYTHING</b> to confirm:</div>
         <input value={confirmText} onChange={e=>setConfirmText(e.target.value)} placeholder="Type DELETE EVERYTHING" style={{width:'100%', padding:12, borderRadius:8, border:'2px solid #fecaca', fontWeight:700}} />
-        <button onClick={handleClean} disabled={cleaning || confirmText!=='DELETE EVERYTHING'} style={{width:'100%', marginTop:12, padding:14, background: confirmText==='DELETE EVERYTHING'?'#dc2626':'#94a3b8', color:'white', border:0, borderRadius:10, fontWeight:900, cursor:'pointer', fontSize:14}}>
-          {cleaning? 'Cleaning...' : '🗑️ DELETE EVERYTHING - MAKE FRESH'}
+        <button onClick={handleClean} disabled={true} style={{width:'100%', marginTop:12, padding:14, background: confirmText==='DELETE EVERYTHING'?'#dc2626':'#94a3b8', color:'white', border:0, borderRadius:10, fontWeight:900, cursor:'pointer', fontSize:14}}>
+          {cleaning? 'Cleaning...' : 'ðŸ—‘ï¸ DELETE EVERYTHING - MAKE FRESH'}
         </button>
         <div style={{marginTop:12, fontSize:11, background:'#f8fafc', padding:10, borderRadius:8, fontWeight:600}}>{status}</div>
       </div>

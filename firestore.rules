@@ -2,36 +2,253 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() { return request.auth != null; }
-    
-    function isAdmin() {
-      return signedIn() && request.auth.token.email in [
-        'admin@clubmarina.co.ke'
-      ];
+    function signedIn() {
+      return request.auth != null;
     }
 
-    // Explicit staff rules - this was missing and caused your bug
-    match /staff/{docId} { allow read, write: if signedIn(); }
-    match /users/{userId} { allow read: if signedIn(); allow write: if signedIn(); }
-    match /appUsers/{userId} { allow read: if signedIn(); allow write: if signedIn(); }
-    match /tables/{docId} { allow read, write: if signedIn(); }
-    match /products/{docId} { allow read, write: if signedIn(); }
-    match /sales/{docId} { allow read, write: if signedIn(); }
-    match /auditLogs/{docId} { allow read, write: if signedIn(); }
-    match /liveActivity/{docId} { allow read, write: if signedIn(); }
-    match /voidRequests/{docId} { allow read, write: if signedIn(); }
-    match /categories/{docId} { allow read, write: if signedIn(); }
-    match /expenses/{docId} { allow read, write: if signedIn(); }
-    match /purchases/{docId} { allow read, write: if signedIn(); }
-    match /suppliers/{docId} { allow read, write: if signedIn(); }
-    match /cashShifts/{docId} { allow read, write: if signedIn(); }
-    match /cash_shifts/{docId} { allow read, write: if signedIn(); }
-    match /bookings/{docId} { allow read, write: if signedIn(); }
-    match /orders/{docId} { allow read, write: if signedIn(); }
-    match /stockCounts/{docId} { allow read, write: if signedIn(); }
-    match /settings/{docId} { allow read: if signedIn(); allow write: if isAdmin(); }
-    
-    // Keep catch-all
-    match /{document=**} { allow read, write: if signedIn(); }
+    function initialAdmin() {
+      return signedIn()
+        && request.auth.token.get('email', '') == 'admin@clubmarina.co.ke';
+    }
+
+    function staffPath() {
+      return /databases/$(database)/documents/staff/$(request.auth.uid);
+    }
+
+    function activeStaff() {
+      return signedIn()
+        && (
+          initialAdmin()
+          || (
+            exists(staffPath())
+            && get(staffPath()).data.get('active', true) != false
+          )
+        );
+    }
+
+    function staffRole() {
+      return get(staffPath()).data.get(
+        'role',
+        get(staffPath()).data.get('Role', '')
+      );
+    }
+
+    function hasRole(roles) {
+      return activeStaff()
+        && (
+          initialAdmin()
+          || staffRole() in roles
+        );
+    }
+
+    function managers() {
+      return hasRole(['super_admin', 'admin', 'manager']);
+    }
+
+    function financeReaders() {
+      return hasRole([
+        'super_admin', 'admin', 'manager',
+        'cashier', 'accountant', 'auditor'
+      ]);
+    }
+
+    function inventoryManagers() {
+      return hasRole([
+        'super_admin', 'admin', 'manager', 'storekeeper'
+      ]);
+    }
+
+    // Profile documents are managed through trusted server-side code.
+    match /staff/{uid} {
+      allow read: if activeStaff()
+        && (request.auth.uid == uid || managers());
+      allow write: if false;
+    }
+
+    match /staffs/{uid} {
+      allow read: if activeStaff()
+        && (request.auth.uid == uid || managers());
+      allow write: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if activeStaff()
+        && (request.auth.uid == uid || managers());
+      allow write: if false;
+    }
+
+    match /appUsers/{uid} {
+      allow read: if activeStaff()
+        && (request.auth.uid == uid || managers());
+      allow write: if false;
+    }
+
+    match /products/{id} {
+      allow read: if activeStaff();
+      allow create, update, delete: if inventoryManagers();
+    }
+
+    match /categories/{id} {
+      allow read: if activeStaff();
+      allow create, update, delete: if inventoryManagers();
+    }
+
+    match /suppliers/{id} {
+      allow read: if activeStaff();
+      allow create, update, delete: if inventoryManagers();
+    }
+
+    match /tables/{id} {
+      allow read: if activeStaff();
+      allow create, update, delete: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier', 'waiter'
+      ]);
+    }
+
+    match /sales/{id} {
+      allow read: if activeStaff();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier', 'waiter'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /orders/{id} {
+      allow read: if activeStaff();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier', 'waiter'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /payments/{id} {
+      allow read: if financeReaders();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier', 'waiter', 'accountant'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /inventoryMovements/{id} {
+      allow read: if activeStaff();
+      allow create: if hasRole([
+        'super_admin', 'admin', 'manager', 'storekeeper', 'cashier', 'waiter'
+      ]);
+      allow update, delete: if inventoryManagers();
+    }
+
+    match /purchases/{id} {
+      allow read: if financeReaders() || inventoryManagers();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'storekeeper', 'accountant'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /expenses/{id} {
+      allow read: if financeReaders();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'accountant'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /cashShifts/{id} {
+      allow read: if financeReaders();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /cash_shifts/{id} {
+      allow read: if financeReaders();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /auditLogs/{id} {
+      allow read: if hasRole([
+        'super_admin', 'admin', 'manager', 'accountant', 'auditor'
+      ]);
+      allow create: if activeStaff();
+      allow update, delete: if false;
+    }
+
+    match /liveActivity/{id} {
+      allow read: if activeStaff();
+      allow create: if activeStaff();
+      allow update, delete: if false;
+    }
+
+    match /voidRequests/{id} {
+      allow read: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier'
+      ]);
+      allow create: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier', 'waiter'
+      ]);
+      allow update: if managers();
+      allow delete: if managers();
+    }
+
+    match /bookings/{id} {
+      allow read: if activeStaff();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier', 'waiter'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /vipBookings/{id} {
+      allow read: if activeStaff();
+      allow create, update: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier', 'waiter'
+      ]);
+      allow delete: if managers();
+    }
+
+    match /stockCounts/{id} {
+      allow read: if activeStaff();
+      allow create, update: if inventoryManagers();
+      allow delete: if managers();
+    }
+
+    match /wastage/{id} {
+      allow read: if activeStaff();
+      allow create, update: if inventoryManagers();
+      allow delete: if managers();
+    }
+
+    match /receipts/{id} {
+      allow read: if financeReaders();
+      allow create: if hasRole([
+        'super_admin', 'admin', 'manager', 'cashier'
+      ]);
+      allow update, delete: if managers();
+    }
+
+    match /settings/{id} {
+      allow read: if activeStaff();
+      allow write: if managers();
+    }
+
+    match /events/{id} {
+      allow read: if activeStaff();
+      allow create, update, delete: if managers();
+    }
+
+    match /notifications/{id} {
+      allow read: if activeStaff();
+      allow create: if activeStaff();
+      allow update, delete: if managers();
+    }
+
+    // Anything not explicitly covered above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
